@@ -17,45 +17,84 @@ os.environ['OMP_NUM_THREADS'] = '1'
 # FaceFusion path ayarlari
 sys.path.insert(0, os.path.dirname(__file__))
 
-from facefusion import state_manager
+from facefusion import state_manager, face_detector, face_landmarker, face_recognizer, logger
 from facefusion.face_analyser import get_one_face, get_many_faces
-from facefusion.processors.modules.face_swapper.core import swap_face, pre_check, get_model_options
+from facefusion.processors.modules.face_swapper import core as face_swapper_core
 from facefusion.vision import read_static_image
 from facefusion.download import conditional_download_hashes, conditional_download_sources
 
 
 def initialize_facefusion():
     """FaceFusion'i baslatir ve gerekli modelleri yukler"""
-    # Temel state manager ayarlari
-    state_manager.init_item('face_detector_model', 'yoloface')
-    state_manager.init_item('face_detector_size', '640x640')
-    state_manager.init_item('face_detector_score', 0.5)
-    state_manager.init_item('face_landmarker_model', '2dfan4')
-    state_manager.init_item('face_landmarker_score', 0.5)
-    state_manager.init_item('face_recognizer_model', 'arcface_inswapper')
-    state_manager.init_item('face_swapper_model', 'inswapper_128')
-    state_manager.init_item('face_swapper_pixel_boost', '128x128')
-    state_manager.init_item('face_swapper_weight', 0.5)
-    state_manager.init_item('face_mask_types', ['box'])
-    state_manager.init_item('face_mask_blur', 0.3)
-    state_manager.init_item('face_mask_padding', (0, 0, 0, 0))
-    state_manager.init_item('face_mask_regions', [])
-    state_manager.init_item('face_mask_areas', [])
-    state_manager.init_item('source_paths', [])
-    state_manager.init_item('target_path', None)
-    state_manager.init_item('output_path', None)
-    state_manager.init_item('video_memory_strategy', 'moderate')
-    state_manager.init_item('execution_providers', ['cpu'])
-    state_manager.init_item('execution_thread_count', 4)
-    state_manager.init_item('temp_path', '.facefusion/temp')
-
-    # Modelleri kontrol et ve yukle
     try:
-        if not pre_check():
-            return False, "Model dosyalari yuklenemiyor. Lutfen internet baglantinizi kontrol edin."
-        return True, "Basariyla baslatildi!"
+        print("\n🔧 FaceFusion baslatiiliyor...")
+        print("🔧 Initializing FaceFusion...\n")
+
+        # Temel state manager ayarlari
+        state_manager.init_item('face_detector_model', 'yoloface')
+        state_manager.init_item('face_detector_size', '640x640')
+        state_manager.init_item('face_detector_score', 0.5)
+        state_manager.init_item('face_landmarker_model', '2dfan4')
+        state_manager.init_item('face_landmarker_score', 0.5)
+        state_manager.init_item('face_recognizer_model', 'arcface_inswapper')
+        state_manager.init_item('face_swapper_model', 'inswapper_128')
+        state_manager.init_item('face_swapper_pixel_boost', '128x128')
+        state_manager.init_item('face_swapper_weight', 0.5)
+        state_manager.init_item('face_mask_types', ['box'])
+        state_manager.init_item('face_mask_blur', 0.3)
+        state_manager.init_item('face_mask_padding', (0, 0, 0, 0))
+        state_manager.init_item('face_mask_regions', [])
+        state_manager.init_item('face_mask_areas', [])
+        state_manager.init_item('source_paths', [])
+        state_manager.init_item('target_path', None)
+        state_manager.init_item('output_path', None)
+        state_manager.init_item('video_memory_strategy', 'moderate')
+        state_manager.init_item('execution_providers', ['cpu'])
+        state_manager.init_item('execution_thread_count', 4)
+        state_manager.init_item('temp_path', '.facefusion/temp')
+
+        # Gecici klasor olustur
+        os.makedirs('.facefusion/temp', exist_ok=True)
+
+        print("📦 Modeller kontrol ediliyor ve indiriliyor...")
+        print("📦 Checking and downloading models...")
+        print("   (Ilk kulanimda biraz zaman alabilir / May take time on first run)\n")
+
+        # Face Detector modellerini yukle
+        print("1/4 Yuz tespit modeli yukleniyor... / Loading face detector...")
+        if not face_detector.pre_check():
+            return False, "❌ Face Detector modeli yuklenemedi! Internet baglantinizi kontrol edin."
+        print("    ✅ Tamam / OK\n")
+
+        # Face Landmarker modellerini yukle
+        print("2/4 Yuz isaret noktasi modeli yukleniyor... / Loading face landmarker...")
+        if not face_landmarker.pre_check():
+            return False, "❌ Face Landmarker modeli yuklenemedi! Internet baglantinizi kontrol edin."
+        print("    ✅ Tamam / OK\n")
+
+        # Face Recognizer modellerini yukle
+        print("3/4 Yuz tanima modeli yukleniyor... / Loading face recognizer...")
+        if not face_recognizer.pre_check():
+            return False, "❌ Face Recognizer modeli yuklenemedi! Internet baglantinizi kontrol edin."
+        print("    ✅ Tamam / OK\n")
+
+        # Face Swapper modellerini yukle
+        print("4/4 Yuz degistirme modeli yukleniyor... / Loading face swapper...")
+        if not face_swapper_core.pre_check():
+            return False, "❌ Face Swapper modeli yuklenemedi! Internet baglantinizi kontrol edin."
+        print("    ✅ Tamam / OK\n")
+
+        print("=" * 60)
+        print("✅ TUM MODELLER YUKLENDI! / ALL MODELS LOADED!")
+        print("✅ Uygulama kullanima hazir! / Application ready to use!")
+        print("=" * 60 + "\n")
+
+        return True, "✅ Basariyla baslatildi! Artik yuz degistirme yapabilirsiniz."
+
     except Exception as e:
-        return False, f"Hata: {str(e)}"
+        error_msg = f"❌ Baslangic hatasi: {str(e)}\n\nLutfen:\n1. Internet baglantinizi kontrol edin\n2. Python'un dogru yuklendigini kontrol edin\n3. Uygulamayi yeniden baslatin"
+        print(error_msg)
+        return False, error_msg
 
 
 def process_face_swap(source_image, target_image, swap_strength):
@@ -105,7 +144,7 @@ def process_face_swap(source_image, target_image, swap_strength):
             return None, "Hedef resimde yuz bulunamadi! Lutfen acik bir yuz iceren resim secin."
 
         # Yuz degistirme islemi
-        result_frame = swap_face(source_face, target_face, target_frame_bgr)
+        result_frame = face_swapper_core.swap_face(source_face, target_face, target_frame_bgr)
 
         # RGB'ye cevir
         result_rgb = cv2.cvtColor(result_frame.astype(np.uint8), cv2.COLOR_BGR2RGB)
@@ -252,5 +291,6 @@ if __name__ == "__main__":
         server_port=7860,
         share=False,
         show_error=True,
-        quiet=False
+        quiet=False,
+        inbrowser=True  # Tarayiciyi otomatik ac / Automatically open browser
     )
